@@ -1,19 +1,36 @@
 name: Auto Assign
 on:
-  issues:
-    types: [opened]
   pull_request:
-    types: [opened]
+    types: [opened, unassigned, synchronize, reopened, ready_for_review]
 jobs:
   run:
     runs-on: ubuntu-latest
     permissions:
-      issues: write
       pull-requests: write
+    if: ${{ github.event_name == 'pull_request' }}
     steps:
-    - name: 'Auto-assign issue'
-      uses: pozil/auto-assign-issue@v1
-      with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          assignees: JamieCYYen
-          numOfAssignee: 1
+      - name: Fetch teams from organization
+        id: checkUserMember
+        uses: tspascoal/get-user-teams-membership@v3
+        with:
+          organization: 'demo-jamie'
+          username: ${{ github.actor }}
+          team: 'vertical team'
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      # Check member's identity
+      - if: ${{ steps.checkUserMember.outputs.isTeamMember == 'false' }} # wrong flag, for testing
+        run: echo 'User memeber is not from android team ${{ steps.checkUserMember.outputs.teams }}'
+              echo 'This pr needs reveiwer from member of 'android-team'.'
+      - name: Auto-assign reviewer to the issue
+        id: assign # specify id
+        uses: hkusu/review-assign-action@v1
+        with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            assignees: ${{ github.actor }}
+            reviewers: 'android team'
+            ready-comment: 'Ready for review :ok:' # if there are reviewers, posted when opened or draft is released
+            merged-comment: 'It was merged. Thanks for your review :wink:' # if reviewed, posted when merged
+      - name: Show result
+        if: always()
+        run: echo '${{ steps.assign.outputs.result }}' # success or failure
+
